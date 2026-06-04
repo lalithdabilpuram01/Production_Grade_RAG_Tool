@@ -7,3 +7,6 @@ __pycache__/
 venv/
 .idea/
 .DS_Store
+resources_RAG/uploads/
+resources_RAG/vectorstore/
+*.sqlite3
