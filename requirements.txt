@@ -4,6 +4,7 @@ beautifulsoup4
 lxml
 tiktoken
 langchain-chroma
+langchain
 langchain-groq
 langchain-community
 protobuf
@@ -12,4 +13,9 @@ langchain-classic
 langchain-text-splitters
 groq
 sentence-transformers
+rank_bm25
+pypdf
+pdf2image
+pytesseract
+pillow
 protobuf==3.20.3
