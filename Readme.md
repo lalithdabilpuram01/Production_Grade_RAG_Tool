@@ -1,7 +1,7 @@
-# Multi-Domain RAG Research Tool
+# Production-inspired Advanced RAG Architecture
 
 ## Overview
-The Multi-Domain RAG Research Tool is an intelligent web application designed to help users extract actionable insights from unstructured research material across many domains. By providing blog/news URLs, PDF reports, internal documents, or a mix of sources, users can query the application in natural language and receive context-aware answers backed by specific source citations.
+Production-inspired Advanced RAG Architecture is an intelligent web application designed to help users extract actionable insights from unstructured research material across many domains. By providing blog/news URLs, PDF reports, internal documents, or a mix of sources, users can query the application in natural language and receive context-aware answers backed by specific source citations.
 
 This project demonstrates a practical Retrieval-Augmented Generation (RAG) pipeline for reducing research time and improving decision-making across document-heavy workflows.
 
@@ -37,7 +37,7 @@ The following diagram illustrates the data flow and system architecture of the R
 5. **Retrieval**: The basic pipeline performs Chroma similarity search. The advanced pipeline can run HyDE, query decomposition, dense/BM25 hybrid retrieval, parent-section expansion, and cross-encoder reranking.
 6. **Generation and Reflection**: The final context is passed to Groq for grounded answer generation. Optional Self-RAG graders decide whether retrieval is needed, whether retrieved documents are relevant, and whether the answer is supported by the retrieved text.
 
-## Advanced RAG Architecture
+## Production-inspired Advanced RAG Architecture
 
 The advanced pipeline is organized around four pillars and can be enabled feature-by-feature in the Streamlit sidebar.
 
@@ -68,7 +68,7 @@ You can swap models without code changes by setting environment variables:
 GROQ_GENERATION_MODEL=llama-3.3-70b-versatile
 GROQ_HYDE_MODEL=llama-3.1-8b-instant
 GROQ_GRADER_MODEL=llama-3.1-8b-instant
-APP_NAME=Multi-Domain RAG Research Tool
+APP_NAME=Production-inspired Advanced RAG Architecture
 ASSISTANT_ROLE=domain-neutral research assistant
 EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
 RERANK_MODEL=cross-encoder/ms-marco-MiniLM-L-6-v2
