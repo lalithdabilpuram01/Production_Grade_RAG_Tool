@@ -29,6 +29,14 @@ The following diagram illustrates the data flow and system architecture of the R
 
 ![RAG Architecture Diagram](resources_RAG/architecture.png)
 
+The application UI is intentionally organized around the same architecture. The sidebar is the control plane for ingestion and retrieval configuration: users can provide URLs, upload PDFs, enable OCR fallback, and switch the advanced RAG modules on or off before processing sources.
+
+![RAG main application page](resources_RAG/RAG_main_page.png)
+
+In the Tesla Model 3 owner's manual example below, the app has loaded `Owners_Manual.pdf` and answered a question using the advanced pipeline. The response area shows the generated answer and sources, while the reasoning trace exposes which architectural components ran, including query decomposition, HyDE, hybrid retrieval, and cross-encoder reranking. This trace is useful for debugging retrieval behavior and comparing architecture variants during LangSmith evaluation.
+
+![RAG response on Tesla owner's manual question](resources_RAG/RAG_response_on_tesla_owners_manuel.png)
+
 ### Workflow
 1. **Data Extraction**: Unstructured text is extracted from provided web URLs with `WebBaseLoader` and uploaded PDFs with `PyPDFLoader`. Scanned PDFs can use an optional Tesseract OCR fallback.
 2. **Parent-Child Chunking**: Larger parent sections are split for LLM context, while smaller child chunks are embedded for precise vector hits.
@@ -137,6 +145,74 @@ multi_domain_rag_tool/
 5. In the sidebar, provide one or more URLs, upload up to 50 PDFs, or use both together. Click **Process Sources** before asking questions.
 
 For larger PDF batches, keep an eye on local memory and processing time. The app loads PDFs incrementally and writes Chroma vectors in batches. If a PDF page has little selectable text, the optional OCR fallback renders pages with Poppler and extracts text with Tesseract before indexing.
+
+## LangSmith Evaluation
+
+Use `evaluate_rag_langsmith.py` to evaluate the RAG pipeline against `Owners_Manual.pdf` and `testsets/testset.json`.
+
+Add LangSmith credentials to `.env`:
+
+```text
+GROQ_API_KEY=your_groq_api_key_here
+LANGSMITH_API_KEY=your_langsmith_api_key_here
+LANGSMITH_TRACING=true
+```
+
+Run the default evaluation:
+
+```bash
+python evaluate_rag_langsmith.py
+```
+
+The runner indexes `Owners_Manual.pdf`, sends each `testsets/testset.json` question through the RAG system, and logs the experiment to LangSmith with deterministic, LLM-as-judge, and operational evaluators.
+
+Before each run, the script syncs the local testset into LangSmith using stable example IDs. If the examples do not exist, it creates them; if they already exist from a previous run, it updates them and continues.
+
+The logged metrics include:
+- `answer_similarity`
+- `keyword_recall`
+- `groundedness`
+- `faithfulness`
+- `context_relevance`
+- `answer_relevance`
+- `insufficient_context_agreement`
+- `citation_presence`
+- `expected_page_citation_match`
+- `latency_seconds`
+- `answer_word_count`
+- `answer_char_count`
+- `source_count`
+- `citation_count`
+- `retrieved_count` when the RAG trace reports it
+- `trace_step_count`
+
+LangSmith tracing also captures run traces and model-call metadata, such as latency and token usage, when the underlying model integration reports it.
+
+The groundedness, faithfulness, context relevance, and answer relevance metrics use the Groq grader model from `GROQ_GRADER_MODEL`. To run a cheaper deterministic-only evaluation without these LLM-as-judge metrics:
+
+```bash
+python evaluate_rag_langsmith.py --skip-llm-judge
+```
+
+For the best retrieval performance, keep Self-RAG reflection off and turn on the other advanced RAG features. Self-RAG reflection can add extra grading calls and may make the run slower or more conservative, so the recommended evaluation command is:
+
+```bash
+python evaluate_rag_langsmith.py --hyde --decomposition --hybrid --rerank --top-k 10 --top-n 5
+```
+
+Do not add `--self-rag` when using this recommended setup. Parent-child retrieval is already enabled by default.
+
+For a faster advanced retrieval run without HyDE or decomposition:
+
+```bash
+python evaluate_rag_langsmith.py --hybrid --rerank --top-k 10 --top-n 5
+```
+
+To use a custom LangSmith dataset name:
+
+```bash
+python evaluate_rag_langsmith.py --dataset-name model-3-owners-manual-rag-testset
+```
 
 ## Current Development Status
 The core RAG pipeline and user interface are fully functional for multi-domain document research. You can tune `ASSISTANT_ROLE` for a specific corpus, such as policy analyst, medical literature assistant, legal research assistant, or technical documentation assistant.

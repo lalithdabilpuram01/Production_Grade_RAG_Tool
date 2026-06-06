@@ -1,0 +1,17 @@
+[
+  {"question": "What is the recommended cold tire inflation pressure for the Model 3?", "answer": "The recommended cold tire inflation pressure is 42 psi (290 kPa) for 235/45R18 tires.", "page": 97},
+  {"question": "How many USB ports does the Model 3 have and where are they located?", "answer": "The Model 3 has four USB ports: one USB-C in the rear of the center console, two USB-C ports below the rear cabin vents on the center console, and one USB-A port inside the glovebox.", "page": 12},
+  {"question": "At what temperature does Cabin Overheat Protection activate?", "answer": "Cabin Overheat Protection runs the A/C or fan when the cabin temperature exceeds 105 degrees F (40 degrees C), or the selected temperature if available.", "page": 53},
+  {"question": "What does Joe Mode do and how do I enable it?", "answer": "Joe Mode reduces the volume of all chimes that are not related to critical safety issues. Enable it via Controls > Safety > Joe Mode.", "page": 11},
+  {"question": "How do I keep the vehicle in Neutral when exiting, for example to pull it onto a flatbed?", "answer": "Activate Tow Mode, which keeps the Model 3 in Neutral when you exit so it can roll freely.", "page": 73},
+  {"question": "Can I display tire pressure in BAR instead of PSI?", "answer": "Yes. The touchscreen lets you choose to display tire pressures using either BAR or PSI.", "page": 11},
+  {"question": "What happens if PIN to Drive is enabled when I try to drive?", "answer": "If PIN to Drive is enabled, you must enter a valid PIN on the touchscreen before you can drive the Model 3.", "page": 63},
+  {"question": "Where are the tow eye covers located on the Model 3?", "answer": "There is a front tow eye cover at the front of the vehicle and a rear tow eye cover at the rear; both are described in the Instructions for Transporters.", "page": 4},
+  {"question": "Is screen protector damage covered under warranty?", "answer": "No. Any damage caused by installing a screen protector is not covered by the warranty.", "page": 7},
+  {"question": "What features keep the vehicle awake and using the low voltage battery?", "answer": "Features such as Keep Climate On, Pet Mode, Camp Mode, or Sentry Mode keep the vehicle awake. It is also awake when the low voltage battery is charging or in use, during high voltage charging, and when communicating with the mobile app.", "page": 12},
+  {"question": "Where can I view the Owner's Manual specific to my vehicle?", "answer": "You can view it on the vehicle's touchscreen by touching the app launcher and selecting the Manual app.", "page": 1},
+  {"question": "What should I do if a camera has not finished calibration?", "answer": "Contact Tesla only if the Model 3 has not completed calibration after driving 100 miles (160 km) in the described conditions.", "page": 20},
+  {"question": "How do I turn on child locks and why?", "answer": "It is recommended to turn on child locks when children are seated in the rear seats; you can choose Left or Right to engage it on a specific door.", "page": 27},
+  {"question": "What is the maximum towing capacity of the Model 3?", "answer": "INSUFFICIENT_CONTEXT", "page": null},
+  {"question": "What color should I paint my Model 3?", "answer": "INSUFFICIENT_CONTEXT", "page": null}
+]

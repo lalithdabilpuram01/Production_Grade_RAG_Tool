@@ -11,6 +11,7 @@ protobuf
 langchain-huggingface
 langchain-classic
 langchain-text-splitters
+langsmith
 groq
 sentence-transformers
 rank_bm25

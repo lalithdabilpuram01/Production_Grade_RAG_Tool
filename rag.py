@@ -7,7 +7,6 @@ from uuid import uuid4
 
 from dotenv import load_dotenv
 from langchain_chroma import Chroma
-from langchain_classic.chains import RetrievalQAWithSourcesChain
 from langchain_community.document_loaders import PyPDFLoader, WebBaseLoader
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
@@ -212,9 +211,14 @@ def generate_answer(query, config: Optional[AdvancedRAGConfig] = None, return_tr
 
     config = config or AdvancedRAGConfig()
     if not _uses_advanced_features(config):
-        answer, sources = _generate_basic_answer(query)
+        answer, sources, docs = _generate_basic_answer(query)
         if return_trace:
-            return answer, sources, {"mode": "basic", "steps": []}
+            return answer, sources, {
+                "mode": "basic",
+                "steps": ["Dense retrieval"],
+                "retrieved_count": len(docs),
+                "retrieved_context": _docs_for_trace(docs),
+            }
         return answer, sources
 
     result = _generate_advanced_answer(query, config)
@@ -223,13 +227,10 @@ def generate_answer(query, config: Optional[AdvancedRAGConfig] = None, return_tr
     return result["answer"], result["sources"]
 
 
-def _generate_basic_answer(query: str) -> Tuple[str, str]:
-    chain = RetrievalQAWithSourcesChain.from_llm(
-        llm=llm,
-        retriever=vector_store.as_retriever(search_kwargs={"k": 4}),
-    )
-    result = chain.invoke({"question": query}, return_only_outputs=True)
-    return result["answer"], result.get("sources", "")
+def _generate_basic_answer(query: str) -> Tuple[str, str, List[Document]]:
+    docs = vector_store.similarity_search(query, k=4)
+    answer = _generate_grounded_answer(query, docs)
+    return answer, _extract_sources(docs), docs
 
 
 def _generate_advanced_answer(query: str, config: AdvancedRAGConfig) -> Dict[str, Any]:
@@ -278,6 +279,9 @@ def _generate_advanced_answer(query: str, config: AdvancedRAGConfig) -> Dict[str
         docs, rerank_trace = rerank_documents(query, docs, config.top_n_rerank)
         trace["rerank"] = rerank_trace
         trace["steps"].append("Cross-encoder reranking")
+
+    trace["retrieved_count"] = len(docs)
+    trace["retrieved_context"] = _docs_for_trace(docs)
 
     answer = _generate_grounded_answer(query, docs)
     sources = _extract_sources(docs)
@@ -363,8 +367,8 @@ def _generate_grounded_answer(query: str, docs: List[Document], low_confidence: 
     caution = "If support is weak, clearly say what is missing. " if low_confidence else ""
     prompt = (
         f"You are a {ASSISTANT_ROLE}. Answer strictly from the retrieved "
-        "context. Preserve source citations by referencing "
-        "the source URL or label when making factual claims. "
+        "context. Cite factual claims with the bracketed source label, including "
+        "the page number when the label has one. "
         f"{caution}If the context does not contain the answer, say you do not "
         "have enough information.\n\n"
         f"Question: {query}\n\nRetrieved context:\n{context}\n\nAnswer:"
@@ -409,8 +413,8 @@ def _doc_key(doc: Document) -> str:
 def _format_docs_for_prompt(docs: List[Document]) -> str:
     blocks = []
     for idx, doc in enumerate(docs, start=1):
-        source = doc.metadata.get("source", "unknown")
-        blocks.append(f"[{idx}] Source: {source}\n{doc.page_content}")
+        source_label = _citation_label(doc)
+        blocks.append(f"[{idx}] Source: {source_label}\n{doc.page_content}")
     return "\n\n".join(blocks)
 
 
@@ -418,11 +422,44 @@ def _extract_sources(docs: List[Document]) -> str:
     sources = []
     seen = set()
     for doc in docs:
-        source = doc.metadata.get("source")
+        source = _citation_label(doc)
         if source and source not in seen:
             seen.add(source)
             sources.append(source)
     return "\n".join(sources)
+
+
+def _docs_for_trace(docs: List[Document], max_chars_per_doc: int = 1200) -> List[Dict[str, Any]]:
+    trace_docs = []
+    for doc in docs:
+        trace_docs.append(
+            {
+                "source": _citation_label(doc),
+                "page": _display_page_number(doc),
+                "content": doc.page_content.strip()[:max_chars_per_doc],
+            }
+        )
+    return trace_docs
+
+
+def _citation_label(doc: Document) -> str:
+    source = doc.metadata.get("source", "unknown")
+    page = _display_page_number(doc)
+    if page is None:
+        return source
+
+    return f"{source}, page {page}"
+
+
+def _display_page_number(doc: Document) -> Optional[int]:
+    page = doc.metadata.get("page")
+    if page is None:
+        return None
+
+    try:
+        return int(page) + 1
+    except (TypeError, ValueError):
+        return None
 
 
 def _load_pdf_documents(pdf_path, enable_pdf_ocr: bool) -> Tuple[List[Document], bool, str]:
