@@ -9,9 +9,9 @@ from typing import Any, Dict, List, Union
 from uuid import NAMESPACE_URL, uuid5
 
 from dotenv import load_dotenv
-from langchain_groq import ChatGroq
 from langsmith import Client
 
+from groq_models import JUDGE, build_chat_model, resolve_model
 from rag import AdvancedRAGConfig, generate_answer, process_sources
 
 
@@ -21,7 +21,6 @@ INSUFFICIENT_CONTEXT = "INSUFFICIENT_CONTEXT"
 
 
 load_dotenv()
-GROQ_GRADER_MODEL = os.getenv("GROQ_GRADER_MODEL", "llama-3.1-8b-instant")
 judge_llm = None
 
 
@@ -378,7 +377,7 @@ def format_retrieved_context(context_docs: List[Dict[str, Any]], max_chars: int 
 def invoke_judge(prompt: str) -> str:
     global judge_llm
     if judge_llm is None:
-        judge_llm = ChatGroq(model=GROQ_GRADER_MODEL, temperature=0.0, max_tokens=500)
+        judge_llm = build_chat_model(JUDGE, temperature=0.0, max_tokens=700)
 
     response = judge_llm.invoke(prompt)
     return getattr(response, "content", str(response)).strip()
@@ -509,7 +508,7 @@ def main() -> None:
             "example_count": len(examples),
             "indexing_seconds": indexing_seconds,
             "llm_judge_enabled": not args.skip_llm_judge,
-            "llm_judge_model": GROQ_GRADER_MODEL if not args.skip_llm_judge else None,
+            "llm_judge_model": resolve_model(JUDGE) if not args.skip_llm_judge else None,
             "rag_config": config.__dict__,
         },
         max_concurrency=1,

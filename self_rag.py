@@ -1,37 +1,52 @@
 import json
-import os
 import re
 from typing import Any, Dict, List
 
-from langchain_groq import ChatGroq
+from groq_models import GRADER, build_chat_model
+from llm_cache import cached_chat
 
 
-GRADER_MODEL = os.getenv("GROQ_GRADER_MODEL", "llama-3.1-8b-instant")
+# One fixed instruction block per grader. Everything question-specific goes in
+# the user message so both cache layers can match on the prefix.
+IS_RETRIEVE_SYSTEM_PROMPT = (
+    "Decide whether the question needs retrieval from the user's provided "
+    "documents or can be answered without the corpus. Return only JSON: "
+    '{"needs_retrieval": true, "confidence": 0.0, "reason": "..."}.'
+)
+
+IS_RELEVANT_SYSTEM_PROMPT = (
+    "Grade whether the retrieved context is relevant to the question. Return "
+    "only JSON: "
+    '{"is_relevant": true, "confidence": 0.0, "reason": "...", "rewrite_query": "..."}.'
+)
+
+IS_SUPPORTIVE_SYSTEM_PROMPT = (
+    "Grade whether the answer is fully supported by the retrieved context. "
+    "Return only JSON: "
+    '{"is_supported": true, "confidence": 0.0, "reason": "..."}.'
+)
 
 
 class SelfRAGGrader:
-    def __init__(self, model: str = GRADER_MODEL):
-        self.llm = ChatGroq(model=model, temperature=0.0, max_tokens=300)
+    # 500 tokens rather than 300: reasoning models spend part of the completion
+    # budget before the JSON verdict, and a truncated verdict fails to parse.
+    def __init__(self, max_tokens: int = 500):
+        self.llm = build_chat_model(GRADER, temperature=0.0, max_tokens=max_tokens)
 
     def is_retrieve(self, query: str) -> Dict[str, Any]:
-        prompt = (
-            "Decide whether this question needs retrieval from provided real "
-            "documents or can be answered without the corpus. Return only JSON: "
-            '{"needs_retrieval": true, "confidence": 0.0, "reason": "..."}.\n\n'
-            f"Question: {query}"
+        return self._grade(
+            IS_RETRIEVE_SYSTEM_PROMPT,
+            f"Question: {query}",
+            "is-retrieve",
+            {"needs_retrieval": True, "confidence": 0.5, "reason": "default"},
         )
-        return self._grade(prompt, {"needs_retrieval": True, "confidence": 0.5, "reason": "default"})
 
     def is_relevant(self, query: str, docs: List[Any]) -> Dict[str, Any]:
         context = _format_docs(docs, max_chars=3500)
-        prompt = (
-            "Grade whether the retrieved context is relevant to the question. "
-            "Return only JSON: "
-            '{"is_relevant": true, "confidence": 0.0, "reason": "...", "rewrite_query": "..."}.\n\n'
-            f"Question: {query}\n\nRetrieved context:\n{context}"
-        )
         return self._grade(
-            prompt,
+            IS_RELEVANT_SYSTEM_PROMPT,
+            f"Question: {query}\n\nRetrieved context:\n{context}",
+            "is-relevant",
             {
                 "is_relevant": bool(docs),
                 "confidence": 0.5,
@@ -42,21 +57,22 @@ class SelfRAGGrader:
 
     def is_supportive(self, query: str, answer: str, docs: List[Any]) -> Dict[str, Any]:
         context = _format_docs(docs, max_chars=5000)
-        prompt = (
-            "Grade whether the answer is fully supported by the retrieved "
-            "context. Return only JSON: "
-            '{"is_supported": true, "confidence": 0.0, "reason": "..."}.\n\n'
-            f"Question: {query}\n\nAnswer:\n{answer}\n\nRetrieved context:\n{context}"
-        )
         return self._grade(
-            prompt,
+            IS_SUPPORTIVE_SYSTEM_PROMPT,
+            f"Question: {query}\n\nAnswer:\n{answer}\n\nRetrieved context:\n{context}",
+            "is-supportive",
             {"is_supported": True, "confidence": 0.5, "reason": "default"},
         )
 
-    def _grade(self, prompt: str, default: Dict[str, Any]) -> Dict[str, Any]:
+    def _grade(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        tag: str,
+        default: Dict[str, Any],
+    ) -> Dict[str, Any]:
         try:
-            response = self.llm.invoke(prompt)
-            raw = getattr(response, "content", str(response)).strip()
+            raw = cached_chat(self.llm, system_prompt, user_prompt, tag=tag)
             parsed = _load_json_object(raw)
             return {**default, **parsed}
         except Exception as exc:

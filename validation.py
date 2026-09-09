@@ -3,6 +3,8 @@
 from groq import AsyncGroq
 import asyncio
 
+from groq_models import GRADER, resolve_model
+
 
 async def validate_groq_api_key_async(api_key):
     """Async validation for better performance. 
@@ -23,10 +25,12 @@ async def validate_groq_api_key_async(api_key):
         # Initialize the asynchronous Groq client with the user's key
         client = AsyncGroq(api_key=cleaned_key)
 
-        # Attempt a tiny, low-cost API call to verify the key works
+        # Attempt a tiny, low-cost API call to verify the key works. The model
+        # is resolved against the live catalogue so a retired id cannot make a
+        # valid key look invalid.
         response = await client.chat.completions.create(
             messages=[{"role": "user", "content": "test"}],
-            model="llama-3.3-70b-versatile",
+            model=resolve_model(GRADER),
             max_tokens=5
         )
 
