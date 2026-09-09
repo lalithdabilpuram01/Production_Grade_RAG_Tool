@@ -5,22 +5,58 @@ from typing import Any, Dict, List
 
 from langchain_groq import ChatGroq
 
+from groq_models import HYDE, build_chat_model
+from llm_cache import cached_chat
 
-HYDE_MODEL = os.getenv("GROQ_HYDE_MODEL", "llama-3.1-8b-instant")
+
 ASSISTANT_ROLE = os.getenv("ASSISTANT_ROLE", "domain-neutral research assistant")
+
+# Fixed instruction blocks, kept out of the per-question text so both cache
+# layers can match on them. See llm_cache.py.
+HYDE_SYSTEM_PROMPT = (
+    f"Write a concise, factual, ideal answer as a {ASSISTANT_ROLE}. Include "
+    "likely terms, entities, dates, metrics, and domain-specific phrasing that "
+    "would help retrieve relevant source text, but do not invent citations. "
+    "Return only the hypothetical answer."
+)
+
+DECOMPOSE_SYSTEM_PROMPT = (
+    "Split the user question into independent search sub-queries for a RAG "
+    "retriever. Return only JSON in this shape: "
+    '{"sub_queries": ["..."], "reason": "..."}.'
+)
+
+_hyde_llm = None
+_decompose_llm = None
+
+
+def _get_llm(temperature: float, max_tokens: int, slot: str) -> ChatGroq:
+    # Reused across calls so the underlying HTTP client and its connection pool
+    # survive Streamlit reruns.
+    global _hyde_llm, _decompose_llm
+    if slot == "hyde":
+        if _hyde_llm is None:
+            _hyde_llm = build_chat_model(HYDE, temperature=temperature, max_tokens=max_tokens)
+        return _hyde_llm
+
+    if _decompose_llm is None:
+        _decompose_llm = build_chat_model(HYDE, temperature=temperature, max_tokens=max_tokens)
+    return _decompose_llm
+
+
+def reset_pre_retrieval_clients() -> None:
+    global _hyde_llm, _decompose_llm
+    _hyde_llm = None
+    _decompose_llm = None
 
 
 def generate_hypothetical_answer(query: str) -> Dict[str, Any]:
-    llm = ChatGroq(model=HYDE_MODEL, temperature=0.2, max_tokens=300)
-    prompt = (
-        f"Write a concise, factual, ideal answer as a {ASSISTANT_ROLE}. "
-        "Include likely terms, entities, dates, metrics, and domain-specific "
-        "phrasing that would help retrieve relevant source text, but do not "
-        "invent citations.\n\n"
-        f"Question: {query}\n\nHypothetical answer:"
+    hyde_text = cached_chat(
+        _get_llm(0.2, 500, "hyde"),
+        HYDE_SYSTEM_PROMPT,
+        f"Question: {query}\n\nHypothetical answer:",
+        tag="hyde",
     )
-    response = llm.invoke(prompt)
-    hyde_text = getattr(response, "content", str(response)).strip()
     return {"query_for_embedding": hyde_text or query, "hyde_answer": hyde_text}
 
 
@@ -34,17 +70,13 @@ def decompose_query(query: str) -> Dict[str, Any]:
     if not has_multi_signal:
         return {"sub_queries": [query], "used_llm": False, "reason": "single-part query"}
 
-    llm = ChatGroq(model=HYDE_MODEL, temperature=0.0, max_tokens=350)
-    prompt = (
-        "Split the user question into independent search sub-queries for a RAG "
-        "retriever. Return only JSON in this shape: "
-        '{"sub_queries": ["..."], "reason": "..."}.\n\n'
-        f"Question: {query}"
-    )
-
     try:
-        response = llm.invoke(prompt)
-        raw = getattr(response, "content", str(response)).strip()
+        raw = cached_chat(
+            _get_llm(0.0, 550, "decompose"),
+            DECOMPOSE_SYSTEM_PROMPT,
+            f"Question: {query}",
+            tag="decompose",
+        )
         payload = _load_json_object(raw)
         sub_queries = [
             item.strip()
