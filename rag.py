@@ -13,6 +13,7 @@ from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langsmith import traceable, tracing_context
 
 from groq_models import (
     GENERATION,
@@ -270,6 +271,39 @@ def generate_answer(
     config: Optional[AdvancedRAGConfig] = None,
     return_trace: bool = False,
     memory: Optional[ConversationMemory] = None,
+):
+    thread_id = memory.thread_id if memory else None
+    if not thread_id:
+        return _answer_turn(query, config, return_trace, memory)
+
+    # LangSmith groups traces sharing a thread_id into one conversation. The
+    # context metadata is inherited by every LangChain call made in the turn:
+    # routing, condensing, HyDE, graders, and generation.
+    with tracing_context(metadata={"thread_id": thread_id}):
+        result = _answer_turn(query, config, return_trace, memory)
+
+    if return_trace and result[2] is not None:
+        result[2]["thread_id"] = thread_id
+    return result
+
+
+def _turn_inputs(inputs: Dict[str, Any]) -> Dict[str, Any]:
+    """Log the question and settings, not the whole memory object."""
+    memory = inputs.get("memory")
+    config = inputs.get("config")
+    return {
+        "query": inputs.get("query"),
+        "config": vars(config) if config else None,
+        "turns_in_window": len(memory.turns) if memory else 0,
+    }
+
+
+@traceable(name="RAG turn", process_inputs=_turn_inputs)
+def _answer_turn(
+    query,
+    config: Optional[AdvancedRAGConfig],
+    return_trace: bool,
+    memory: Optional[ConversationMemory],
 ):
     # Idempotent, and required before routing: the router classifies with the
     # same embedding model the retriever uses.

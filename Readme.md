@@ -85,6 +85,8 @@ Before retrieval, every follow-up is condensed into a standalone query. "And the
 
 The sidebar controls the window size and can clear the thread. Processing new sources also starts a fresh thread, since earlier answers refer to a corpus that no longer exists.
 
+Every conversation has a `thread_id`, a UUID created with the memory and replaced whenever the thread is cleared. Each turn is traced in LangSmith as a `RAG turn` run tagged with that id, and so is every model call inside the turn. LangSmith's **Threads** view therefore shows one chat as one conversation. The id appears in the sidebar and in each message's reasoning trace, so you can find a conversation's traces directly.
+
 ### Semantic Routing (`semantic_router.py`)
 "Hi", "thanks, that helped", and "what can you do?" have no answer in the user's documents. Running them through retrieval wastes an embedding search and several LLM calls, and it pushes the model to answer social messages out of unrelated document chunks.
 

@@ -39,6 +39,8 @@ def render_trace(trace):
 
     with st.expander("Reasoning trace", expanded=False):
         st.write("Mode:", trace.get("mode", "unknown"))
+        if trace.get("thread_id"):
+            st.write("Thread ID:", trace["thread_id"])
         if trace.get("steps"):
             st.write("Steps ran:", " -> ".join(trace["steps"]))
 
@@ -188,6 +190,7 @@ st.sidebar.caption(
     f"{len(memory.turns)} turn(s) in window"
     + (", running summary active" if memory.summary else "")
 )
+st.sidebar.caption(f"Thread ID: `{memory.thread_id}`")
 if st.sidebar.button("Clear conversation"):
     reset_conversation()
     st.rerun()
