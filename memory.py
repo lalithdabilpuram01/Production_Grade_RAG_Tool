@@ -13,6 +13,7 @@ request. See llm_cache.py.
 import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
 from langchain_groq import ChatGroq
 
@@ -47,11 +48,18 @@ class Turn:
     sources: str = ""
 
 
+def new_thread_id() -> str:
+    return str(uuid4())
+
+
 @dataclass
 class ConversationMemory:
     window_turns: int = MEMORY_WINDOW_TURNS
     turns: List[Turn] = field(default_factory=list)
     summary: str = ""
+    # Identifies one conversation. Every LLM call made while answering a turn
+    # is tagged with it, so LangSmith groups the whole chat into one thread.
+    thread_id: str = field(default_factory=new_thread_id)
 
     def add_turn(self, question: str, answer: str, sources: str = "") -> None:
         self.turns.append(Turn(question=question, answer=answer, sources=sources))
@@ -60,6 +68,7 @@ class ConversationMemory:
     def clear(self) -> None:
         self.turns = []
         self.summary = ""
+        self.thread_id = new_thread_id()
 
     def is_empty(self) -> bool:
         return not self.turns and not self.summary
